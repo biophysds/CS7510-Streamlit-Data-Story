@@ -70,9 +70,8 @@ with story:
     )
 
     st.caption(
-        "Source: Gapminder, via plotly.express. "
-        "Unweighted country averages, 1952–2007. "
-        "Historical data does not establish current funding needs."
+        "Source: Gapminder (1952–2007), via Plotly Express. "
+        "Continent averages are not weighted by population."
     )
 
 with explore:
