@@ -1,7 +1,8 @@
+# I choose Client A, or Health NGO board task for the following data app
 import streamlit as st
 import plotly.express as px
 
-st.set_page_config(page_title="Global Development Explorer", layout="wide")
+st.set_page_config(page_title="Global Health Explorer", layout="wide")
 
 @st.cache_data
 def load_data():
@@ -9,15 +10,37 @@ def load_data():
 
 df = load_data()
 
-st.title("Asia gained 24 years of life expectancy since 1952")
+by_continent = df.groupby(
+    ["continent", "year"], as_index=False
+)["lifeExp"].mean()
+
+first_year = int(df["year"].min())
+latest_year = int(df["year"].max())
+
+latest = by_continent[
+    by_continent["year"] == latest_year
+].sort_values("lifeExp")
+
+lowest = latest.iloc[0]
+priority = lowest["continent"]
+latest_life = lowest["lifeExp"]
+
+first_life = by_continent.loc[
+    (by_continent["continent"] == priority) &
+    (by_continent["year"] == first_year),
+    "lifeExp"
+].iloc[0]
+
+gain = latest_life - first_life
+
+st.title(
+    f"{priority} had the lowest average life expectancy "
+    f"in {latest_year}: {latest_life:.1f} years"
+)
 
 story, explore = st.tabs(["The story", "Explore it yourself"])
 
 with story:
-    by_continent = df.groupby(
-        ["continent", "year"], as_index=False
-    )["lifeExp"].mean()
-
     fig = px.line(
         by_continent,
         x="year",
@@ -25,20 +48,31 @@ with story:
         color="continent",
         labels={
             "lifeExp": "Average life expectancy (years)",
-            "year": ""
+            "year": "Year",
+            "continent": "Continent"
         }
     )
 
-    st.plotly_chart(fig)
+    st.plotly_chart(fig, use_container_width=True)
 
     st.markdown(
-        "Every continent improved, but **Asia** rose fastest: "
-        "from **46.3** years in 1952 to **70.7** in 2007."
+        f"Average life expectancy in **{priority}** increased "
+        f"from **{first_life:.1f} years** in {first_year} "
+        f"to **{latest_life:.1f} years** in {latest_year}, "
+        f"an improvement of **{gain:.1f} years**."
+    )
+
+    st.markdown(
+        f"Despite this improvement, **{priority}** still had "
+        "the lowest average life expectancy among the continents. "
+        "This makes it a reasonable priority for further investigation "
+        "and potential health funding."
     )
 
     st.caption(
         "Source: Gapminder, via plotly.express. "
-        "Unweighted country averages."
+        "Unweighted country averages, 1952–2007. "
+        "Historical data does not establish current funding needs."
     )
 
 with explore:
@@ -49,24 +83,47 @@ with explore:
         ["All"] + sorted(df["continent"].unique())
     )
 
-    year = left.slider("Year", 1952, 2007, 2007, step=5)
+    year = left.slider(
+        "Year",
+        first_year,
+        latest_year,
+        latest_year,
+        step=5
+    )
 
     filtered = df[df["year"] == year]
 
     if continent != "All":
-        filtered = filtered[filtered["continent"] == continent]
+        filtered = filtered[
+            filtered["continent"] == continent
+        ]
 
     place = "the world" if continent == "All" else continent
 
+    avg_life = filtered["lifeExp"].mean()
+    median_gdp = filtered["gdpPercap"].median()
+    country_count = len(filtered)
+
+    left.metric(
+        "Countries",
+        country_count
+    )
+
     left.metric(
         "Avg life expectancy",
-        f"{filtered['lifeExp'].mean():.1f} yrs"
+        f"{avg_life:.1f} yrs"
+    )
+
+    left.metric(
+        "Median GDP per capita",
+        f"${median_gdp:,.0f}"
     )
 
     right.markdown(
-        f"In **{year}**, the **{len(filtered)}** countries "
+        f"In **{year}**, the **{country_count}** countries "
         f"in **{place}** had an average life expectancy "
-        f"of **{filtered['lifeExp'].mean():.1f} years**."
+        f"of **{avg_life:.1f} years** and a median GDP "
+        f"per capita of **${median_gdp:,.0f}**."
     )
 
     fig = px.scatter(
@@ -78,17 +135,23 @@ with explore:
         size="pop",
         log_x=True,
         size_max=50,
-        range_y=[25, 90]
+        range_y=[25, 90],
+        labels={
+            "gdpPercap": "GDP per capita",
+            "lifeExp": "Life expectancy (years)",
+            "pop": "Population",
+            "continent": "Continent"
+        }
     )
 
-    right.plotly_chart(fig)
-    
+    right.plotly_chart(fig, use_container_width=True)
+
     with st.expander("See the data behind this chart"):
         st.dataframe(filtered, hide_index=True)
 
         st.download_button(
             "Download as CSV",
             data=filtered.to_csv(index=False),
-            file_name=f"gapminder_{place}_{year}.csv",
+            file_name=f"gapminder_{continent}_{year}.csv",
             mime="text/csv"
         )
